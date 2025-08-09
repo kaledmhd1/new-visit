@@ -1,7 +1,15 @@
 {
-  "functions": {
-    "api/send_visit.py": {
-      "runtime": "@vercel/python"
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/send_visit.py",
+      "use": "@vercel/python"
     }
-  }
+  ],
+  "routes": [
+    {
+      "src": "/send_visit",
+      "dest": "api/send_visit.py"
+    }
+  ]
 }
