@@ -1,7 +1,8 @@
 {
+  "version": 2,
   "functions": {
     "api/send_visit.py": {
-      "runtime": "@vercel/python"
+      "runtime": "now-python@0.3.0"
     }
   }
 }
