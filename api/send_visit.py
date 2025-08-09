@@ -1,12 +1,8 @@
-from flask import Flask, request, jsonify
-import httpx
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad
-from concurrent.futures import ThreadPoolExecutor
+import json
 import random
 import time
-
-app = Flask(__name__)
+import httpx
+from concurrent.futures import ThreadPoolExecutor
 
 last_sent_cache = {}
 
@@ -33,6 +29,11 @@ def Encrypt_ID(x):
                 z = (y - int(y)) * 128
                 n = (z - int(z)) * 128
                 return dec[int(n)] + dec[int(z)] + dec[int(y)] + xxx[int(x)]
+    # لو كانت قيمه x أقل أو غير مطابقه لشرط السابق، ترجع None
+    return None
+
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
 
 def encrypt_api(plain_text):
     plain_text = bytes.fromhex(plain_text)
@@ -63,43 +64,64 @@ def send_visit_request(token, TARGET):
     except httpx.RequestError as e:
         return {"token": token[:20] + "...", "status": f"error ({e})"}
 
-@app.route("/send_visit", methods=["GET"])
-def send_visit():
-    player_id = request.args.get("player_id")
+def handler(event, context):
+    # event يحتوي على keys: "method", "query", "body" حسب الطلب
+    # جلب player_id من query string
+    query = event.get("query", {})
+    player_id = query.get("player_id")
 
     if not player_id:
-        return jsonify({"error": "player_id is required"}), 400
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": "player_id is required"})
+        }
 
     try:
         player_id_int = int(player_id)
     except ValueError:
-        return jsonify({"error": "player_id must be an integer"}), 400
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": "player_id must be an integer"})
+        }
 
     now = time.time()
     last_sent = last_sent_cache.get(player_id_int, 0)
     seconds_since_last = now - last_sent
 
-    if seconds_since_last < 86400:  # 24 ساعة = 86400 ثانية
+    if seconds_since_last < 86400:  # 24 ساعة
         remaining = int(86400 - seconds_since_last)
-        return jsonify({
-            "error": "Visits already sent within last 24 hours",
-            "seconds_until_next_allowed": remaining
-        }), 429
+        return {
+            "statusCode": 429,
+            "body": json.dumps({
+                "error": "Visits already sent within last 24 hours",
+                "seconds_until_next_allowed": remaining
+            })
+        }
 
-    # حذف جلب معلومات اللاعب
-
-    # جلب التوكنات من API
+    # جلب التوكنات من API خارجي
     try:
         token_data = httpx.get("https://auto-token-bngx.onrender.com/api/get_jwt", timeout=10).json()
         tokens = token_data.get("tokens", [])
         if not tokens:
-            return jsonify({"error": "No tokens found"}), 500
+            return {
+                "statusCode": 500,
+                "body": json.dumps({"error": "No tokens found"})
+            }
     except Exception as e:
-        return jsonify({"error": f"Failed to fetch tokens: {e}"}), 500
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": f"Failed to fetch tokens: {e}"})
+        }
 
     tokens = random.sample(tokens, min(200, len(tokens)))
 
     encrypted_id = Encrypt_ID(player_id_int)
+    if not encrypted_id:
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": "Encryption failed"})
+        }
+
     encrypted_api_data = encrypt_api(f"08{encrypted_id}1007")
     TARGET = bytes.fromhex(encrypted_api_data)
 
@@ -117,6 +139,7 @@ def send_visit():
             return None
         return res
 
+    from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=40) as executor:
         futures = [executor.submit(worker, token) for token in tokens]
 
@@ -126,12 +149,14 @@ def send_visit():
                 results.append(result)
 
     visits_sent = len(results)
-
     last_sent_cache[player_id_int] = now
 
-    return jsonify({
-        "player_id": player_id_int,
-        "visits_added": visits_sent,
-        "seconds_until_next_allowed": 86400,
-        "details": results
-    })
+    return {
+        "statusCode": 200,
+        "body": json.dumps({
+            "player_id": player_id_int,
+            "visits_added": visits_sent,
+            "seconds_until_next_allowed": 86400,
+            "details": results
+        })
+    }
