@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "functions": {
+    "api/send_visit.py": {
+      "runtime": "python3.9"
+    }
+  }
+}
