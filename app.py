@@ -8,8 +8,6 @@ import time
 
 app = Flask(__name__)
 
-last_sent_cache = {}
-
 def Encrypt_ID(x):
     x = int(x)
     dec = ['80','81','82','83','84','85','86','87','88','89','8a','8b','8c','8d','8e','8f','90','91','92','93','94','95','96','97','98','99','9a','9b','9c','9d','9e','9f','a0','a1','a2','a3','a4','a5','a6','a7','a8','a9','aa','ab','ac','ad','ae','af','b0','b1','b2','b3','b4','b5','b6','b7','b8','b9','ba','bb','bc','bd','be','bf','c0','c1','c2','c3','c4','c5','c6','c7','c8','c9','ca','cb','cc','cd','ce','cf','d0','d1','d2','d3','d4','d5','d6','d7','d8','d9','da','db','dc','dd','de','df','e0','e1','e2','e3','e4','e5','e6','e7','e8','e9','ea','eb','ec','ed','ee','ef','f0','f1','f2','f3','f4','f5','f6','f7','f8','f9','fa','fb','fc','fd','fe','ff']
@@ -75,19 +73,6 @@ def send_visit():
     except ValueError:
         return jsonify({"error": "player_id must be an integer"}), 400
 
-    now = time.time()
-    last_sent = last_sent_cache.get(player_id_int, 0)
-    seconds_since_last = now - last_sent
-
-    if seconds_since_last < 86400:  # 24 ساعة = 86400 ثانية
-        remaining = int(86400 - seconds_since_last)
-        return jsonify({
-            "error": "Visits already sent within last 24 hours",
-            "seconds_until_next_allowed": remaining
-        }), 429
-
-    # حذف جلب معلومات اللاعب
-
     # جلب التوكنات من API
     try:
         token_data = httpx.get("https://auto-token-bngx.onrender.com/api/get_jwt", timeout=10).json()
@@ -127,12 +112,9 @@ def send_visit():
 
     visits_sent = len(results)
 
-    last_sent_cache[player_id_int] = now
-
     return jsonify({
         "player_id": player_id_int,
         "visits_added": visits_sent,
-        "seconds_until_next_allowed": 86400,
         "details": results
     })
 
