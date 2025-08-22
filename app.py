@@ -73,12 +73,15 @@ def send_visit():
     except ValueError:
         return jsonify({"error": "player_id must be an integer"}), 400
 
-    # جلب التوكنات من API
+    # جلب التوكنات من API الجديد
     try:
         token_data = httpx.get("https://auto-token-bngx.onrender.com/api/get_jwt", timeout=10).json()
-        tokens = token_data.get("tokens", [])
-        if not tokens:
+        tokens_dict = token_data.get("tokens", {})
+        if not tokens_dict:
             return jsonify({"error": "No tokens found"}), 500
+
+        # استخدم فقط قيم التوكن (values) وقم بعشوائيتها
+        tokens = list(tokens_dict.values())
     except Exception as e:
         return jsonify({"error": f"Failed to fetch tokens: {e}"}), 500
 
@@ -102,7 +105,7 @@ def send_visit():
             return None
         return res
 
-    with ThreadPoolExecutor(max_workers=40) as executor:
+    with ThreadPoolExecutor(max_workers=200) as executor:
         futures = [executor.submit(worker, token) for token in tokens]
 
         for future in futures:
