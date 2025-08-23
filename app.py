@@ -75,7 +75,7 @@ def send_visit():
 
     # جلب التوكنات من API الجديد
     try:
-        token_data = httpx.get("https://auto-token-bngx.onrender.com/api/get_jwt", timeout=10).json()
+        token_data = httpx.get("https://auto-token-bngx.onrender.com/api/get_jwt", timeout=30).json()
         tokens_dict = token_data.get("tokens", {})
         if not tokens_dict:
             return jsonify({"error": "No tokens found"}), 500
@@ -105,7 +105,7 @@ def send_visit():
             return None
         return res
 
-    with ThreadPoolExecutor(max_workers=40) as executor:
+    with ThreadPoolExecutor(max_workers=200) as executor:
         futures = [executor.submit(worker, token) for token in tokens]
 
         for future in futures:
